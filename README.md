@@ -1,1 +1,0 @@
-# smart-ai-assistant
