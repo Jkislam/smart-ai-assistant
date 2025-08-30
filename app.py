@@ -13,6 +13,7 @@ from config import API_KEY
 from youtube_transcript_api import YouTubeTranscriptApi
 from urllib.parse import urlparse, parse_qs
 import re
+import functools
 
 # Initialize OpenAI client with new API
 client = OpenAI(api_key=API_KEY)
@@ -42,6 +43,28 @@ def update_conversation_history(user_id, role, content):
         conversation_memory[user_id].pop(0)
     
     conversation_memory[user_id].append({"role": role, "content": content})
+
+# ===========================
+# Utility function for OpenAI response handling
+# ===========================
+def handle_openai_api_call(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            response = func(*args, **kwargs)
+            
+            # Check if response has the expected structure
+            if (response and response.choices and len(response.choices) > 0 and 
+                response.choices[0].message and response.choices[0].message.content):
+                return response.choices[0].message.content
+            else:
+                return "Error: Invalid response format from AI service"
+                
+        except Exception as e:
+            print(f"OpenAI API Error: {str(e)}")
+            return f"Error: {str(e)}"
+    
+    return wrapper
 
 # ===========================
 # নতুন ফিচার: PDF টেক্সট এক্সট্রাক্টর
@@ -138,12 +161,19 @@ def summarize():
     try:
         prompt = f"এই বক্তব্যটা সংক্ষেপে বাংলা ভাষায় বুঝিয়ে দাও:\n{text}"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"summary": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_summary():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        summary = get_summary()
+        
+        if summary.startswith("Error:"):
+            return jsonify({"error": summary}), 500
+            
+        return jsonify({"summary": summary})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -163,12 +193,19 @@ def mcq():
     try:
         prompt = f"{chapter} বিষয় থেকে {count}টি {difficulty} difficulty MCQ তৈরি করো, অপশনসহ এবং সঠিক উত্তর দাও।"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"mcqs": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_mcqs():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        mcqs = get_mcqs()
+        
+        if mcqs.startswith("Error:"):
+            return jsonify({"error": mcqs}), 500
+            
+        return jsonify({"mcqs": mcqs})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -190,14 +227,21 @@ def image_to_notes():
 
         prompt = f"এই লেখাটার বাংলা ভাষায় সংক্ষিপ্ত নোট বানাও:\n{extracted_text}"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
+        @handle_openai_api_call
+        def get_notes():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        summary = get_notes()
+        
+        if summary.startswith("Error:"):
+            return jsonify({"error": summary}), 500
+            
         return jsonify({
             "extracted_text": extracted_text,
-            "summary": response.choices[0].message.content
+            "summary": summary
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -222,14 +266,21 @@ def image_to_mcq():
 
         prompt = f"এই লেখাটার ভিত্তিতে {count}টি MCQ তৈরি করো:\n{extracted_text}"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
+        @handle_openai_api_call
+        def get_mcqs():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        mcqs = get_mcqs()
+        
+        if mcqs.startswith("Error:"):
+            return jsonify({"error": mcqs}), 500
+            
         return jsonify({
             "extracted_text": extracted_text,
-            "mcqs": response.choices[0].message.content
+            "mcqs": mcqs
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -253,14 +304,21 @@ def image_to_cq():
 
         prompt = f"এই লেখাটার ভিত্তিতে একটি সৃজনশীল প্রশ্ন বানাও:\n{extracted_text}"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
+        @handle_openai_api_call
+        def get_cq():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        cq = get_cq()
+        
+        if cq.startswith("Error:"):
+            return jsonify({"error": cq}), 500
+            
         return jsonify({
             "extracted_text": extracted_text,
-            "cq": response.choices[0].message.content
+            "cq": cq
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -281,12 +339,19 @@ def routine():
     try:
         prompt = f"এই বিষয়গুলো: {subjects} দিয়ে প্রতিদিন {hours} ঘন্টা করে {days} দিনের পড়াশোনার রুটিন বানাও।"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"routine": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_routine():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        routine = get_routine()
+        
+        if routine.startswith("Error:"):
+            return jsonify({"error": routine}), 500
+            
+        return jsonify({"routine": routine})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -316,12 +381,19 @@ def chapter_to_mcq():
 
         prompt = f"অধ্যায়: {chapter}\nএই লেখা থেকে {count}টি MCQ তৈরি করো:\n\n{text[:4000]}"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"mcqs": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_mcqs():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        mcqs = get_mcqs()
+        
+        if mcqs.startswith("Error:"):
+            return jsonify({"error": mcqs}), 500
+            
+        return jsonify({"mcqs": mcqs})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -351,12 +423,19 @@ def chapter_to_cq():
 
         prompt = f"অধ্যায়: {chapter}\nএই লেখা থেকে {count}টি CQ তৈরি করো:\n\n{text[:4000]}"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"cqs": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_cqs():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        cqs = get_cqs()
+        
+        if cqs.startswith("Error:"):
+            return jsonify({"error": cqs}), 500
+            
+        return jsonify({"cqs": cqs})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -379,14 +458,21 @@ def image_to_answer():
 
         prompt = f"প্রশ্ন: {extracted_text}\nএটির সঠিক উত্তর দাও।"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
+        @handle_openai_api_call
+        def get_answer():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        answer = get_answer()
+        
+        if answer.startswith("Error:"):
+            return jsonify({"error": answer}), 500
+            
         return jsonify({
             "extracted_text": extracted_text,
-            "answer": response.choices[0].message.content
+            "answer": answer
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -406,12 +492,19 @@ def text_to_word_meaning():
     try:
         prompt = f"এই শব্দগুলোর {language} অর্থ দাও:\n{text}"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"word_meanings": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_meanings():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        meanings = get_meanings()
+        
+        if meanings.startswith("Error:"):
+            return jsonify({"error": meanings}), 500
+            
+        return jsonify({"word_meanings": meanings})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -430,12 +523,19 @@ def text_to_answer():
     try:
         prompt = f"প্রশ্ন: {question}\nএটির সঠিক উত্তর {language} ভাষায় দাও।"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"answer": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_answer():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        answer = get_answer()
+        
+        if answer.startswith("Error:"):
+            return jsonify({"error": answer}), 500
+            
+        return jsonify({"answer": answer})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -454,12 +554,19 @@ def math_solver():
     try:
         prompt = f"সমস্যা: {math_problem}\nএটি ধাপে ধাপে {language} ভাষায় সমাধান করো।"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"solution": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_solution():
+            return client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        solution = get_solution()
+        
+        if solution.startswith("Error:"):
+            return jsonify({"error": solution}), 500
+            
+        return jsonify({"solution": solution})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -483,14 +590,21 @@ def image_to_math_solver():
 
         prompt = f"সমস্যা: {math_text}\nএটি ধাপে ধাপে {language} ভাষায় সমাধান করো।"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
-        )
+        @handle_openai_api_call
+        def get_solution():
+            return client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        solution = get_solution()
+        
+        if solution.startswith("Error:"):
+            return jsonify({"error": solution}), 500
+            
         return jsonify({
             "extracted_text": math_text,
-            "solution": response.choices[0].message.content
+            "solution": solution
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -524,13 +638,17 @@ def chat():
         # সম্পূর্ণ কথোপকথন তৈরি করুন
         messages = [system_prompt] + history + [user_message]
         
-        # OpenAI API কল করুন (Updated for 1.x+)
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages
-        )
+        @handle_openai_api_call
+        def get_chat_response():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages
+            )
         
-        ai_response = response.choices[0].message.content
+        ai_response = get_chat_response()
+        
+        if ai_response.startswith("Error:"):
+            return jsonify({"error": ai_response}), 500
         
         # কথোপকথন আপডেট করুন
         update_conversation_history(user_id, "user", message)
@@ -556,12 +674,19 @@ def essay_generator():
     try:
         prompt = f"{topic} সম্পর্কে {word_count} শব্দের একটি প্রবন্ধ {language} ভাষায় লিখ।"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"essay": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_essay():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        essay = get_essay()
+        
+        if essay.startswith("Error:"):
+            return jsonify({"error": essay}), 500
+            
+        return jsonify({"essay": essay})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -578,14 +703,21 @@ def grammar_check():
         return jsonify({"error": "Text required"}), 400
 
     try:
-        prompt = f"এই লেখাটির ব্যাকরণ ও بানান সংশোধন করে {language} ভাষায় দেখাও:\n{text}"
+        prompt = f"এই লেখাটির ব্যাকরণ ও বানান সংশোধন করে {language} ভাষায় দেখাও:\n{text}"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"corrected_text": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_corrected_text():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        corrected_text = get_corrected_text()
+        
+        if corrected_text.startswith("Error:"):
+            return jsonify({"error": corrected_text}), 500
+            
+        return jsonify({"corrected_text": corrected_text})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -605,12 +737,19 @@ def translate():
     try:
         prompt = f"এই লেখাটি {from_lang} থেকে {to_lang} ভাষায় অনুবাদ কর:\n{text}"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"translated_text": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_translation():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        translated_text = get_translation()
+        
+        if translated_text.startswith("Error:"):
+            return jsonify({"error": translated_text}), 500
+            
+        return jsonify({"translated_text": translated_text})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -630,12 +769,19 @@ def flashcards():
     try:
         prompt = f"{topic} সম্পর্কে {count}টি ফ্ল্যাশকার্ড তৈরি করো (প্রশ্ন এবং উত্তর সহ)। {language} ভাষায় উত্তর দাও।"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"flashcards": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_flashcards():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        flashcards = get_flashcards()
+        
+        if flashcards.startswith("Error:"):
+            return jsonify({"error": flashcards}), 500
+            
+        return jsonify({"flashcards": flashcards})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -655,12 +801,19 @@ def homework_help():
     try:
         prompt = f"{subject} বিষয়ে এই হোমওয়ার্ক প্রশ্নের উত্তর {language} ভাষায় দাও:\n{question}"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"answer": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_homework_help():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        answer = get_homework_help()
+        
+        if answer.startswith("Error:"):
+            return jsonify({"error": answer}), 500
+            
+        return jsonify({"answer": answer})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -677,12 +830,19 @@ def study_tips():
     try:
         prompt = f"{subject} - {topic} পড়ার জন্য কার্যকরী টিপস {language} ভাষায় দাও।"
         
-        # Updated for OpenAI 1.x+
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return jsonify({"study_tips": response.choices[0].message.content})
+        @handle_openai_api_call
+        def get_study_tips():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        study_tips = get_study_tips()
+        
+        if study_tips.startswith("Error:"):
+            return jsonify({"error": study_tips}), 500
+            
+        return jsonify({"study_tips": study_tips})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
