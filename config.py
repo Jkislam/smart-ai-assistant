@@ -2,7 +2,7 @@
 # Configuration file for Smart AI Helper API
 
 # OpenAI API Key
-API_KEY = "your-openai-api-key-here"
+API_KEY = "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"
 
 # Tesseract OCR path (if needed for Windows)
 # For Windows, you might need to specify the path to tesseract.exe
@@ -50,3 +50,4 @@ MEMORY_CLEANUP_INTERVAL = 3600  # 1 hour in seconds
 
 # YouTube transcript settings
 YOUTUBE_LANGUAGES = ['bn', 'en']
+
