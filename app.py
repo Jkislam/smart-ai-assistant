@@ -85,6 +85,10 @@ def extract_text_from_pdf_url(pdf_url):
 # ===========================
 def extract_text_from_image(image_data):
     try:
+        # Remove data:image prefix if present
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        
         image = Image.open(io.BytesIO(base64.b64decode(image_data)))
         extracted_text = pytesseract.image_to_string(image, lang="eng+ben")
         return extracted_text
@@ -722,7 +726,7 @@ def grammar_check():
         return jsonify({"error": str(e)}), 500
 
 # ===========================
-# নতুন ফিচার: অনুবাদক
+# নতুন ফিচار: অনুবাদক
 # ===========================
 @app.route('/translate', methods=['POST'])
 def translate():
