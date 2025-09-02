@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from openai import OpenAI
 import pytesseract
@@ -21,6 +21,31 @@ app = Flask(__name__)
 CORS(app)
 
 # ===========================
+# Favicon Route
+# ===========================
+@app.route('/favicon.ico')
+def favicon():
+    try:
+        return send_from_directory(
+            os.path.join(app.root_path, 'static'),
+            'favicon.ico',
+            mimetype='image/vnd.microsoft.icon'
+        )
+    except:
+        return '', 204  # fallback if favicon not found
+
+# ===========================
+# Error Handlers
+# ===========================
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({"error": "Endpoint not found", "status": 404}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({"error": "Internal server error", "status": 500}), 500
+
+# ===========================
 # PDF Links লোড
 # ===========================
 with open("pdf_links.json", "r", encoding="utf-8") as f:
@@ -37,11 +62,8 @@ def get_conversation_history(user_id):
 def update_conversation_history(user_id, role, content):
     if user_id not in conversation_memory:
         conversation_memory[user_id] = []
-    
-    # সর্বাধিক 10টি মেসেজ রাখা হবে
     if len(conversation_memory[user_id]) >= 10:
         conversation_memory[user_id].pop(0)
-    
     conversation_memory[user_id].append({"role": role, "content": content})
 
 # ===========================
@@ -52,18 +74,14 @@ def handle_openai_api_call(func):
     def wrapper(*args, **kwargs):
         try:
             response = func(*args, **kwargs)
-            
-            # Check if response has the expected structure
             if (response and response.choices and len(response.choices) > 0 and 
                 response.choices[0].message and response.choices[0].message.content):
                 return response.choices[0].message.content
             else:
                 return "Error: Invalid response format from AI service"
-                
         except Exception as e:
             print(f"OpenAI API Error: {str(e)}")
             return f"Error: {str(e)}"
-    
     return wrapper
 
 # ===========================
@@ -85,10 +103,8 @@ def extract_text_from_pdf_url(pdf_url):
 # ===========================
 def extract_text_from_image(image_data):
     try:
-        # Remove data:image prefix if present
         if ',' in image_data:
             image_data = image_data.split(',')[1]
-        
         image = Image.open(io.BytesIO(base64.b64decode(image_data)))
         extracted_text = pytesseract.image_to_string(image, lang="eng+ben")
         return extracted_text
@@ -127,7 +143,6 @@ def home():
             {"path": "/study-tips", "method": "POST", "description": "Study Tips Generator"}
         ]
     })
-
 # ===========================
 # (১) ভিডিও ➡️ সামারি
 # ===========================
@@ -856,3 +871,4 @@ def study_tips():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 7860))
     app.run(host='0.0.0.0', port=port, debug=True)
+
